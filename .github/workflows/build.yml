@@ -1,0 +1,77 @@
+name: build docker image
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  DOCKER_REPO: jonoh/radio_db
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        if: ${{ github.ref == 'refs/heads/main' }}
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Install poetry
+        run: pip3 install poetry
+
+      - name: Bump poetry version
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          VERSION=$(poetry version -s)
+          if git rev-parse "$VERSION"; then
+            poetry version patch
+            VERSION=$(poetry version -s)
+            git add pyproject.toml
+            git commit -m 'Bump version'
+            git push
+          fi
+          git tag $VERSION
+          git push --tags
+
+      - name: Set docker tag
+        id: docker_tag
+        run: |
+          echo "::set-output name=DOCKER_TAG::$(poetry version -s)"
+
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: "${{ env.DOCKER_REPO }}:${{ steps.docker_tag.outputs.DOCKER_TAG }}"
+
+      - name: Update repo description
+        uses: peter-evans/dockerhub-description@v2
+        if: ${{ github.ref == 'refs/heads/main' }}
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          repository: ${{ env.DOCKER_REPO }}
+          readme-filepath: ./readme.md
