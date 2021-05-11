@@ -1,6 +1,6 @@
 FROM python:3.9.5 AS base
 
-FROM base as builder
+FROM base as build
 
 # renovate: datasource=github-releases depName=python-poetry/poetry
 ARG POETRY_VERSION=1.1.6
@@ -19,7 +19,7 @@ FROM base
 WORKDIR /app
 
 COPY . .
-COPY --from=builder /app/lib /app/lib
+COPY --from=build /app/lib /app/lib
 ENV PYTHONPATH=/app/lib
 
 ENTRYPOINT [ "python", "-m", "radio_db" ]
