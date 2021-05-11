@@ -2,6 +2,7 @@ import contextvars
 import logging
 from asyncio import Lock
 from contextlib import asynccontextmanager
+from urllib.parse import quote_plus
 
 from sqlalchemy import BigInteger, Column, DateTime, String
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -55,15 +56,20 @@ class Play(Base):
 
 class RadioDatabase:
     
-    def __init__(self, db_file):
-        self.db_file = db_file
+    def __init__(self, host, user, password, db):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.db = db
         self._session = contextvars.ContextVar('session')
         self._lock = Lock()
 
         # TODO schema?
 
     async def connect(self):
-        engine = self._engine = create_async_engine('postgresql+asyncpg://postgres:postgres@localhost:5432/postgres', echo=True)
+        q = quote_plus
+        db_url = f'postgresql+asyncpg://{q(self.user)}:{q(self.password)}@{q(self.host)}:5432/{q(self.db)}'
+        engine = self._engine = create_async_engine(db_url, echo=True)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
