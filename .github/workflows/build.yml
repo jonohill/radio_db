@@ -57,6 +57,19 @@ jobs:
         run: |
           echo "::set-output name=DOCKER_TAG::$(poetry version -s)"
 
+      - name: Build and cache build stage
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          cache-from: type=registry,ref=${{ env.DOCKER_REPO }}:build
+          cache-to: type=registry,ref=${{ env.DOCKER_REPO }}:build
+          push: false
+          tags: build
+          target: build
+
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v2
@@ -64,6 +77,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm/v7,linux/arm64
+          cache-from: type=registry,ref=${{ env.DOCKER_REPO }}:build
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "${{ env.DOCKER_REPO }}:${{ steps.docker_tag.outputs.DOCKER_TAG }}"
 
