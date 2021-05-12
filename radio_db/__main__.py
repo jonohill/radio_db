@@ -41,6 +41,7 @@ class DatabaseConfig(BaseSettings):
     host: str
     username: str
     password: str
+    name: str
     
     class Config:
         env_prefix = 'RDB_DATABASE_'
@@ -193,7 +194,7 @@ async def main():
         config = Config(**YAML().load(f))
 
     db_conf = config.database
-    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password)
+    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
     await rdb.connect()
     for t in asyncio.as_completed(
         [ monitor_station(rdb, s) for s in config.stations ] + 
