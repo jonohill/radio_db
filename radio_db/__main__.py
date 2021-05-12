@@ -10,12 +10,11 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from . import db
 from .m3u8 import M3u8
 
-from .db import Play, RadioDatabase, Pending, Station, Song
+from .db import Play, RadioDatabase, Pending, Song
 from sqlalchemy.future import select
 from sqlalchemy import or_, and_, update, null, delete
 from spotipy import Spotify
 from asyncio import to_thread
-from sqlalchemy.sql.expression import func
 from hashlib import sha256
 import re
 
@@ -193,7 +192,8 @@ async def main():
     with open(config_path, 'r') as f:
         config = Config(**YAML().load(f))
 
-    rdb = db.RadioDatabase(config.database)
+    db_conf = config.database
+    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password)
     await rdb.connect()
     for t in asyncio.as_completed(
         [ monitor_station(rdb, s) for s in config.stations ] + 
