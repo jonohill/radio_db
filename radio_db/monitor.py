@@ -24,64 +24,6 @@ import logging
 log = logging.getLogger(__name__)
 logging.basicConfig(level='WARNING')
 
-class PlaylistType(Enum):
-    Top = 'top'
-
-class FilterConfig(BaseModel):
-    blank: Pattern = None
-
-class PlaylistConfig(BaseModel):
-    type: PlaylistType = PlaylistType.Top
-    days: int = 7
-    limit: int = 100
-
-class StationConfig(BaseModel):
-    key: str
-    name: str
-    url: str
-    filters: FilterConfig = None
-
-class SpotifyConfig(BaseSettings):
-    client_id: str
-    client_secret: str
-
-    class Config:
-        env_prefix = 'RDB_SPOTIFY_'
-        env_file = '.env'
-
-class DatabaseConfig(BaseSettings):
-    host: str
-    username: str
-    password: str
-    name: str
-    
-    class Config:
-        env_prefix = 'RDB_DATABASE_'
-        env_file = '.env'
-
-class Config(BaseSettings):
-    stations: List[StationConfig]
-    database: DatabaseConfig = DatabaseConfig()
-    spotify: SpotifyConfig = SpotifyConfig()
-
-    class Config:
-        env_prefix = 'RDB_'
-        env_file = '.env'
-
-class SpotifyArtist(BaseModel):
-    name: str
-
-class SpotifyTrack(BaseModel):
-    name: str
-    artists: List[SpotifyArtist]
-    uri: str
-
-class SpotifyTracks(BaseModel):
-    items: List[SpotifyTrack]
-
-class SpotifyResult(BaseModel):
-    tracks: SpotifyTracks
-
 async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations: List[StationConfig]):
     spotify_auth = SpotifyClientCredentials(client_id, client_secret)
     spotify = Spotify(auth_manager=spotify_auth)
@@ -208,7 +150,7 @@ async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
                     async with rdb.transaction():
                         await rdb.add(pending)
 
-async def main():
+async def run():
     config_path = sys.argv[1] if len(sys.argv) > 1 else 'config.yml'
     with open(config_path, 'r') as f:
         config = Config(**YAML().load(f))
@@ -221,4 +163,5 @@ async def main():
         [ process_pending(rdb, config.spotify.client_id, config.spotify.client_secret, config.stations) ]):
         await t
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(run())
