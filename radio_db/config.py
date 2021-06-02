@@ -19,10 +19,12 @@ class StationConfig(BaseModel):
     name: str
     url: str
     filters: FilterConfig = None
+    playlists: List[PlaylistConfig] = []
 
 class SpotifyConfig(BaseSettings):
     client_id: str
     client_secret: str
+    auth_seed: str
 
     class Config:
         env_prefix = 'RDB_SPOTIFY_'
@@ -47,20 +49,6 @@ class Config(BaseSettings):
         env_prefix = 'RDB_'
         env_file = '.env'
 
-class SpotifyArtist(BaseModel):
-    name: str
-
-class SpotifyTrack(BaseModel):
-    name: str
-    artists: List[SpotifyArtist]
-    uri: str
-
-class SpotifyTracks(BaseModel):
-    items: List[SpotifyTrack]
-
-class SpotifyResult(BaseModel):
-    tracks: SpotifyTracks
-
-def from_yaml(file_path):
+def from_yaml(file_path='config.yml'):
     with open(file_path, 'r') as f:
         return Config(**YAML().load(f))

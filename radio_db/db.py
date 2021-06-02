@@ -1,13 +1,16 @@
 import contextvars
+import enum
 import logging
 from asyncio import Lock
 from contextlib import asynccontextmanager
 from urllib.parse import quote_plus
 
-from sqlalchemy import BigInteger, Column, DateTime, String
+from sqlalchemy import BigInteger, Column, DateTime, Enum, String
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql.schema import ForeignKey, Index
+
+from radio_db.config import PlaylistType
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +57,24 @@ class Play(Base):
     song        = Column(ForeignKey('song.id'))
     at          = Column(DateTime, nullable=False)
 
+class Playlist(Base):
+    __tablename__ = 'playlist'
+
+    id          = Column(BigInteger, primary_key=True, autoincrement=True)
+    station     = Column(ForeignKey('station.id'))
+    type_       = Enum(PlaylistType)
+    spotify_uri = Column(String, unique=True)
+
+class StateKey(enum.Enum):
+    SpotifyAuth = 'spotify_auth'
+
+class State(Base):
+    __tablename__ = 'state'
+
+    key         = Column(Enum(StateKey), primary_key=True)
+    value       = Column(String)
+
+
 class RadioDatabase:
     
     def __init__(self, host, user, password, db):
@@ -64,12 +85,16 @@ class RadioDatabase:
         self._session = contextvars.ContextVar('session')
         self._lock = Lock()
 
-        # TODO schema?
+    def get_url(self):
+        q = quote_plus
+        return f'postgresql+asyncpg://{q(self.user)}:{q(self.password)}@{q(self.host)}:5432/{q(self.db)}'
+
+    def create_engine(self):
+        engine = self._engine = create_async_engine(self.get_url())
+        return engine
 
     async def connect(self):
-        q = quote_plus
-        db_url = f'postgresql+asyncpg://{q(self.user)}:{q(self.password)}@{q(self.host)}:5432/{q(self.db)}'
-        engine = self._engine = create_async_engine(db_url, echo=True)
+        engine = self.create_engine()
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
@@ -80,16 +105,18 @@ class RadioDatabase:
             session = self._session.get()
             log.debug('using existing session')
             yield session
+            return
         except LookupError:
-            # first
-            async with self._engine.connect() as connection:
-                async with AsyncSession(bind=connection, expire_on_commit=False) as session:
-                    log.debug('created new session')
-                    token = self._session.set(session)
-                    try:
-                        yield session
-                    finally:
-                        self._session.reset(token)
+            pass
+        # first
+        async with self._engine.connect() as connection:
+            async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+                log.debug('created new session')
+                token = self._session.set(session)
+                try:
+                    yield session
+                finally:
+                    self._session.reset(token)
 
     @asynccontextmanager
     async def transaction(self):

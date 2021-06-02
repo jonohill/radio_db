@@ -18,11 +18,25 @@ from asyncio import to_thread
 from hashlib import sha256
 from enum import Enum
 import re
+from .config import StationConfig
 
 import logging
 
 log = logging.getLogger(__name__)
-logging.basicConfig(level='WARNING')
+
+class SpotifyArtist(BaseModel):
+    name: str
+
+class SpotifyTrack(BaseModel):
+    name: str
+    artists: List[SpotifyArtist]
+    uri: str
+
+class SpotifyTracks(BaseModel):
+    items: List[SpotifyTrack]
+
+class SpotifyResult(BaseModel):
+    tracks: SpotifyTracks
 
 async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations: List[StationConfig]):
     spotify_auth = SpotifyClientCredentials(client_id, client_secret)
@@ -44,7 +58,7 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                 .order_by(Pending.seen_at)
             )
             if not next_pending:
-                await asyncio.sleep(60)
+                await asyncio.sleep(180)
                 continue
             async with rdb.transaction():
                 # Take ownership by setting picked_at
@@ -132,7 +146,7 @@ async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
             station.name = station_config.name
             station.url = station_config.url
         else:
-            station = db.Station(**station_config.dict())
+            station = db.Station(**station_config.dict(exclude={ 'filters', 'playlists' }))
         async with rdb.transaction():
             await rdb.add(station)
 
@@ -150,11 +164,7 @@ async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
                     async with rdb.transaction():
                         await rdb.add(pending)
 
-async def run():
-    config_path = sys.argv[1] if len(sys.argv) > 1 else 'config.yml'
-    with open(config_path, 'r') as f:
-        config = Config(**YAML().load(f))
-
+async def run(config):
     db_conf = config.database
     rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
     await rdb.connect()
