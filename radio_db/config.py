@@ -8,6 +8,7 @@ class PlaylistType(Enum):
 
 class FilterConfig(BaseModel):
     blank: Pattern = None
+    ignore: Pattern = None
 
 class PlaylistConfig(BaseModel):
     type: PlaylistType = PlaylistType.Top

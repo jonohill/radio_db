@@ -1,3 +1,4 @@
+import asyncio
 import contextvars
 import enum
 import logging
@@ -62,7 +63,7 @@ class Playlist(Base):
 
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
     station     = Column(ForeignKey('station.id'))
-    type_       = Enum(PlaylistType)
+    type_       = Column(Enum(PlaylistType))
     spotify_uri = Column(String, unique=True)
 
 class StateKey(enum.Enum):
@@ -82,6 +83,7 @@ class RadioDatabase:
         self.user = user
         self.password = password
         self.db = db
+        self._tx_lock = asyncio.Lock()
         self._session = contextvars.ContextVar('session')
         self._lock = Lock()
 
@@ -120,7 +122,7 @@ class RadioDatabase:
 
     @asynccontextmanager
     async def transaction(self):
-        async with self.session() as session:
+        async with self._tx_lock, self.session() as session:
             try:
                 yield
                 await session.commit()

@@ -1,26 +1,21 @@
 import asyncio
-import sys
+import logging
+import re
+from asyncio import to_thread
 from datetime import datetime, timedelta
-from typing import List, Pattern
+from hashlib import sha256
+from typing import List
 
-from pydantic import BaseModel, BaseSettings
-from ruamel.yaml import YAML
+from pydantic import BaseModel
+from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
+from sqlalchemy import and_, delete, null, or_, update
+from sqlalchemy.future import select
 
 from . import db
-from .m3u8 import M3u8
-
-from .db import Play, RadioDatabase, Pending, Song, Station
-from sqlalchemy.future import select
-from sqlalchemy import or_, and_, update, null, delete
-from spotipy import Spotify
-from asyncio import to_thread
-from hashlib import sha256
-from enum import Enum
-import re
 from .config import StationConfig
-
-import logging
+from .db import Pending, Play, RadioDatabase, Song, Station
+from .m3u8 import M3u8
 
 log = logging.getLogger(__name__)
 
@@ -77,48 +72,58 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                 # If the picked_at has changed then someone else picked it up in the mean time
                 continue
 
-            station = await rdb.first(
-                select(Station)
-                .where(Station.id == next_pending.station)
-            )
-            station_config = next(( s for s in stations if s.key == station.key ))
-            
-            # Try for an exact match in the database
-            artist = next_pending.artist
-            title = next_pending.title
-            normalised = f'{next_pending.artist} {next_pending.title}'.replace(' - ', ' ').lower()
-            if station_config.filters and station_config.filters.blank:
-                normalised = station_config.filters.blank.sub('', normalised)
-            key_input = RE_NO_PUNC.sub('', normalised)
-            key = int.from_bytes(sha256(RE_SPACES.sub(' ', key_input).encode()).digest()[:8], 'little', signed=True)
-            song = await rdb.first(
-                select(Song)
-                .where(Song.key == key)
-            )
+            async def _process_song():
+                station = await rdb.first(
+                    select(Station)
+                    .where(Station.id == next_pending.station)
+                )
+                station_config = next(( s for s in stations if s.key == station.key ))
+                
+                # Try for an exact match in the database
+                artist = next_pending.artist
+                title = next_pending.title
+                normalised = f'{next_pending.artist} {next_pending.title}'.replace(' - ', ' ').lower()
 
-            # Failing that, try to find it on Spotify
-            if not song:
-                response = await to_thread(lambda: spotify.search(q=normalised, type='track'))
-                result = SpotifyResult(**response)
-                items = result.tracks.items
-                if len(items) > 0:
-                    item = items[0]
-                    artist = item.artists[0].name
-                    title = item.name
-                    uri = item.uri
-    
-                    # And check - maybe it actually is in the database
-                    song = await rdb.first(
-                        select(Song)
-                        .where(Song.spotify_uri == uri)
-                    )
-                    # Or not
-                    if not song:
-                        song = Song(key=key, artist=artist, title=title, spotify_uri=uri)
-                        async with rdb.transaction():
-                            await rdb.add(song)
-            if not song:
-                log.warning(f'{normalised} was not found on spotify')
+                filters = station_config.filters
+                if filters:
+                    if filters.ignore and filters.ignore.search(normalised):
+                        log.info(f'Ignoring {normalised}')
+                        return
+                    if filters.blank:
+                        normalised = filters.blank.sub('', normalised)
+                
+                key_input = RE_NO_PUNC.sub('', normalised)
+                key = int.from_bytes(sha256(RE_SPACES.sub(' ', key_input).encode()).digest()[:8], 'little', signed=True)
+                song = await rdb.first(
+                    select(Song)
+                    .where(Song.key == key)
+                )
+
+                # Failing that, try to find it on Spotify
+                if not song:
+                    response = await to_thread(lambda: spotify.search(q=normalised, type='track'))
+                    result = SpotifyResult(**response)
+                    items = result.tracks.items
+                    if len(items) > 0:
+                        item = items[0]
+                        artist = item.artists[0].name
+                        title = item.name
+                        uri = item.uri
+        
+                        # And check - maybe it actually is in the database
+                        song = await rdb.first(
+                            select(Song)
+                            .where(Song.spotify_uri == uri)
+                        )
+                        # Or not
+                        if not song:
+                            song = Song(key=key, artist=artist, title=title, spotify_uri=uri)
+                            async with rdb.transaction():
+                                await rdb.add(song)
+                if not song:
+                    log.warning(f'{normalised} was not found on spotify')
+
+            song = await _process_song()
 
             async with rdb.transaction():
                 if song:

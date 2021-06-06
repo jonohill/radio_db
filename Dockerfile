@@ -22,4 +22,5 @@ COPY . .
 COPY --from=build /app/lib /app/lib
 ENV PYTHONPATH=/app/lib
 
-ENTRYPOINT [ "python", "-m", "radio_db" ]
+COPY entrypoint /entrypoint
+ENTRYPOINT [ "/entrypoint" ]
