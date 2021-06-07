@@ -2,7 +2,7 @@
 
 set -e
 
-alembic upgrade head
+python -m alembic upgrade head
 
 python -m radio_db monitor &
 sleep 60 &
