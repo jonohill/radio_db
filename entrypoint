@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -e
+
+alembic upgrade head
+
+python -m radio_db monitor &
+sleep 60 &
+wait -n
+while true; do
+    python -m radio_db update-playlists &
+    wait -n
+    sleep 86400 &
+    wait -n
+done

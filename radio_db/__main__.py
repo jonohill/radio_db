@@ -1,204 +1,80 @@
 import asyncio
-import sys
-from datetime import datetime, timedelta
-from typing import List
-
-from pydantic import BaseModel, BaseSettings
-from ruamel.yaml import YAML
-from spotipy.oauth2 import SpotifyClientCredentials
-
-from . import db
-from .m3u8 import M3u8
-
-from .db import Play, RadioDatabase, Pending, Song
-from sqlalchemy.future import select
-from sqlalchemy import or_, and_, update, null, delete
-from spotipy import Spotify
-from asyncio import to_thread
-from hashlib import sha256
-import re
-
+import base64
+import json
 import logging
+import sys
+from functools import wraps
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level='WARNING')
+import typer
+from spotipy import CacheHandler, Spotify, SpotifyOAuth
+from typer import Option
 
+from . import playlists
+from .config import from_yaml as config_from_yaml
+from .monitor import run as run_monitor
 
-class StationConfig(BaseModel):
-    key: str
-    name: str
-    url: str
+log = logging.getLogger('__name__')
 
-class SpotifyConfig(BaseSettings):
-    client_id: str
-    client_secret: str
+app = typer.Typer()
 
-    class Config:
-        env_prefix = 'RDB_SPOTIFY_'
-        env_file = '.env'
+config = None
 
-class DatabaseConfig(BaseSettings):
-    host: str
-    username: str
-    password: str
-    name: str
-    
-    class Config:
-        env_prefix = 'RDB_DATABASE_'
-        env_file = '.env'
+def run_sync(f):
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        return asyncio.run(f(*args, **kwargs))
+    return wrap
 
-class Config(BaseSettings):
-    stations: List[StationConfig]
-    database: DatabaseConfig = DatabaseConfig()
-    spotify: SpotifyConfig = SpotifyConfig()
+@app.callback()
+def read_config(
+    config_file='config.yml', 
+    verbosity: int = Option(0, '--verbose', '-v', count=True),
+):
+    global config
+    config = config_from_yaml(config_file)
 
-    class Config:
-        env_prefix = 'RDB_'
-        env_file = '.env'
+    level = max(logging.WARNING - verbosity * 10, 0)
+    logging.basicConfig(level=level)
+    log.debug('Debug logging is enabled')
 
-class SpotifyArtist(BaseModel):
-    name: str
+@app.command()
+@run_sync
+async def monitor():
+    await run_monitor(config)
 
-class SpotifyTrack(BaseModel):
-    name: str
-    artists: List[SpotifyArtist]
-    uri: str
+@app.command()
+@run_sync
+async def update_playlists(station_key: str = typer.Argument(None)):
+    for station in config.stations:
+        if not station_key or station.key == station_key:
+            await playlists.update(config, station.key)
 
-class SpotifyTracks(BaseModel):
-    items: List[SpotifyTrack]
+@app.command()
+def authorise():
+    """Authorise Spotify. Run this on something with a browser."""
+    def err(msg):
+        print(msg, file=sys.stderr)
 
-class SpotifyResult(BaseModel):
-    tracks: SpotifyTracks
+    class TokenEchoer(CacheHandler):
+        
+        def get_cached_token(self):
+            return {}
+        
+        def save_token_to_cache(self, token_info):
+            err('Set this as the spotify.auth_seed (env: RDB_SPOTIFY_AUTH_SEED) config value:')
+            print(base64.b64encode(json.dumps(token_info).encode()).decode())
 
-async def process_pending(rdb: RadioDatabase, client_id, client_secret):
-    spotify_auth = SpotifyClientCredentials(client_id, client_secret)
-    spotify = Spotify(auth_manager=spotify_auth)
+    err("We've opened Spotify in your browser. Please authorise and then return here.")
 
-    RE_NO_PUNC = re.compile(r'[^\w\s]')
-    RE_SPACES = re.compile(r'\s+')
+    sp_conf = config.spotify
+    sp = Spotify(auth_manager=SpotifyOAuth(
+        scope='playlist-modify-private', 
+        redirect_uri='http://localhost:9090', 
+        client_id=sp_conf.client_id, 
+        client_secret=sp_conf.client_secret,
+        cache_handler=TokenEchoer())
+    )
+    sp.current_user()
 
-    async with rdb.session():
-        while True:
-            next_pending: Pending = await rdb.first(
-                select(Pending)
-                .where(
-                    or_(
-                        Pending.picked_at == null(),
-                        Pending.picked_at <= (datetime.now() - timedelta(minutes=5))
-                    )
-                )
-                .order_by(Pending.seen_at)
-            )
-            if not next_pending:
-                await asyncio.sleep(60)
-                continue
-            async with rdb.transaction():
-                # Take ownership by setting picked_at
-                result = await rdb.exec(
-                    update(Pending)
-                    .where(
-                        and_(
-                            Pending.id == next_pending.id,
-                            Pending.picked_at == next_pending.picked_at
-                        )
-                    )
-                    .values(picked_at=datetime.now())
-                    .execution_options(synchronize_session='fetch')
-                )
-            if result.rowcount == 0:
-                # If the picked_at has changed then someone else picked it up in the mean time
-                continue
-            
-            # Try for an exact match in the database
-            artist = next_pending.artist
-            title = next_pending.title
-            normalised = f'{next_pending.artist} {next_pending.title}'.replace(' - ', ' ').lower()
-            key_input = RE_NO_PUNC.sub('', normalised)
-            key = int.from_bytes(sha256(RE_SPACES.sub(' ', key_input).encode()).digest()[:8], 'little', signed=True)
-            song = await rdb.first(
-                select(Song)
-                .where(Song.key == key)
-            )
-
-            # Failing that, try to find it on Spotify
-            if not song:
-                response = await to_thread(lambda: spotify.search(q=normalised, type='track'))
-                result = SpotifyResult(**response)
-                items = result.tracks.items
-                if len(items) > 0:
-                    item = items[0]
-                    artist = item.artists[0].name
-                    title = item.name
-                    uri = item.uri
-    
-                    # And check - maybe it actually is in the database
-                    song = await rdb.first(
-                        select(Song)
-                        .where(Song.spotify_uri == uri)
-                    )
-                    # Or not
-                    if not song:
-                        song = Song(key=key, artist=artist, title=title, spotify_uri=uri)
-                        async with rdb.transaction():
-                            await rdb.add(song)
-            if not song:
-                log.warning(f'{normalised} was not found on spotify')
-
-            async with rdb.transaction():
-                if song:
-                    play = Play(
-                        station = next_pending.station,
-                        song = song.id,
-                        at = next_pending.seen_at
-                    )
-                    await rdb.add(play)
-                await rdb.exec(
-                    delete(Pending)
-                    .where(Pending.id == next_pending.id)
-                )
-                
-
-async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
-    async with rdb.session():
-        # Fetch and update, or insert station
-        station = await rdb.first(
-            select(db.Station)
-            .where(db.Station.key == station_config.key)
-        )
-
-        if station:
-            station.name = station_config.name
-            station.url = station_config.url
-        else:
-            station = db.Station(**station_config.dict())
-        async with rdb.transaction():
-            await rdb.add(station)
-
-        m3u8 = M3u8(station_config.url)
-        artist = ''
-        title = ''
-        async for item in m3u8.read_song_info():
-            if 'artist' in item and 'title' in item:
-                new_artist = item['artist']
-                new_title = item['title']
-                if new_artist != artist or new_title != title:
-                    artist = new_artist
-                    title = new_title
-                    pending = db.Pending(artist=artist, title=title, seen_at=datetime.now(), station=station.id)
-                    async with rdb.transaction():
-                        await rdb.add(pending)
-
-async def main():
-    config_path = sys.argv[1] if len(sys.argv) > 1 else 'config.yml'
-    with open(config_path, 'r') as f:
-        config = Config(**YAML().load(f))
-
-    db_conf = config.database
-    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
-    await rdb.connect()
-    for t in asyncio.as_completed(
-        [ monitor_station(rdb, s) for s in config.stations ] + 
-        [ process_pending(rdb, config.spotify.client_id, config.spotify.client_secret) ]):
-        await t
-
-asyncio.run(main())
+if __name__ == '__main__':
+    app()
