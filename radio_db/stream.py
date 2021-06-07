@@ -1,18 +1,29 @@
 import asyncio
+import json
 import logging
 from itertools import takewhile
 from time import time
 
 import aiohttp
+from pydantic import BaseModel
+import pydantic
 
 log = logging.getLogger(__name__)
 
-MAGIC = '#EXTM3U'
-
-class M3u8:
+class Stream:
 
     def __init__(self, stream_url):
         self.stream_url = stream_url
+
+    async def read_song_info(self):
+        raise NotImplementedError()
+
+M3U8_MAGIC = '#EXTM3U'.encode()
+
+class FormatError(Exception):
+    pass
+
+class M3u8(Stream):
 
     async def _read_stream_inf(_, url_line):
         """Example:
@@ -86,9 +97,9 @@ class M3u8:
                 async def readline():
                     return (await response.content.readline()).decode().strip()
 
-                header = await read(len(MAGIC))
-                if header != MAGIC:
-                    raise Exception('Not an m3u8 stream')
+                header = await response.content.read(len(M3U8_MAGIC))
+                if header != M3U8_MAGIC:
+                    raise FormatError('Not an m3u8 stream')
 
                 await readline() # To consume rest of header line
                 line2 = await readline()
@@ -118,11 +129,55 @@ class M3u8:
 
                 await asyncio.sleep(target_duration)
 
+class _FfTags(BaseModel):
+    StreamTitle: str
+
+class _FfFormat(BaseModel):
+    tags: _FfTags
+
+class _FfOut(BaseModel):
+    format: _FfFormat
+
+class Icy(Stream):
+
+    async def read_song_info(self):
+        prev_result = {}
+        while True:
+            proc = await asyncio.create_subprocess_exec('ffprobe', '-v', 'error', '-show_format', '-of', 'json', self.stream_url, stdout=asyncio.subprocess.PIPE)
+            stdout, _ = await proc.communicate()
+            try:
+                ff_out = _FfOut(**json.loads(stdout.decode()))
+            except pydantic.error_wrappers.ValidationError:
+                raise FormatError('Not an icy stream')
+            song = ff_out.format.tags.StreamTitle.split(' - ', maxsplit=1)
+            result = {}
+            if len(song) == 2:
+                artist, title = tuple(song)
+                result['artist'] = artist
+                result['title'] = title
+            else:
+                result['title'] = song[0]
+            if prev_result != result:
+                prev_result = result
+                yield result
+            await asyncio.sleep(120)
+            
+async def read_song_info(url):
+    for stream_class in [M3u8, Icy]:
+        stream: Stream = stream_class(url)
+        try:
+            async for song_info in stream.read_song_info():
+                yield song_info
+            return
+        except FormatError:
+            pass
+    raise FormatError(f'No compatible parser found for {url}')
+    
+
 if __name__ == "__main__":
 
     async def main():
-        m3u8 = M3u8('https://ais-nzme.streamguys1.com/nz_009/playlist.m3u8')
-        async for item in m3u8.read_song_info():
+        async for item in read_song_info('https://chz.radioca.st/streams/128kbps'):
             print(item)
 
     asyncio.run(main())

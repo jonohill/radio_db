@@ -16,6 +16,9 @@ RUN POETRY_VIRTUALENVS_IN_PROJECT=true poetry install && \
 
 FROM base
 
+RUN apt-get update && apt-get install -y \
+    ffmpeg
+
 WORKDIR /app
 
 COPY . .

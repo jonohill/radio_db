@@ -12,10 +12,9 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from sqlalchemy import and_, delete, null, or_, update
 from sqlalchemy.future import select
 
-from . import db
+from . import db, stream
 from .config import StationConfig
 from .db import Pending, Play, RadioDatabase, Song, Station
-from .m3u8 import M3u8
 
 log = logging.getLogger(__name__)
 
@@ -155,10 +154,9 @@ async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
         async with rdb.transaction():
             await rdb.add(station)
 
-        m3u8 = M3u8(station_config.url)
         artist = ''
         title = ''
-        async for item in m3u8.read_song_info():
+        async for item in stream.read_song_info(station_config.url):
             if 'artist' in item and 'title' in item:
                 new_artist = item['artist']
                 new_title = item['title']
