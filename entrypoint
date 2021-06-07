@@ -2,7 +2,7 @@
 
 set -e
 
-alembic migrate HEAD
+alembic upgrade head
 
 python -m radio_db monitor &
 sleep 60 &

@@ -96,9 +96,7 @@ class RadioDatabase:
         return engine
 
     async def connect(self):
-        engine = self.create_engine()
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        self.create_engine()
 
     @asynccontextmanager
     async def session(self):
@@ -135,7 +133,6 @@ class RadioDatabase:
             session.add(item)            
 
     async def exec(self, query):
-        # async with self._lock:
         async with self.session() as session:
             return await session.execute(query)
 
