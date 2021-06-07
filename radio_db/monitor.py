@@ -121,6 +121,7 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                                 await rdb.add(song)
                 if not song:
                     log.warning(f'{normalised} was not found on spotify')
+                return song
 
             song = await _process_song()
 
