@@ -1,8 +1,0 @@
-stations:
-  - key: hauraki
-    name: Radio Hauraki
-    url: https://ais-nzme.streamguys1.com/nz_009/playlist.m3u8
-    filters:
-      blank: \(locals only\)
-    playlists:
-      - type: top
