@@ -3,6 +3,7 @@ import json
 import logging
 from itertools import takewhile
 from time import time
+from typing import List
 
 import aiohttp
 from pydantic import BaseModel
@@ -161,9 +162,41 @@ class Icy(Stream):
                 prev_result = result
                 yield result
             await asyncio.sleep(120)
-            
+
+class _RadioApiNowPlaying(BaseModel):
+    name: str
+    artist: str
+
+class _RadioApi(BaseModel):
+    nowPlaying: List[_RadioApiNowPlaying]
+
+class RadioApi(Stream):
+    """As used by Rova"""
+
+    async def read_song_info(self):
+        async with aiohttp.ClientSession() as http:
+            prev = {}
+            while True:
+                async with http.get(self.stream_url) as response:
+                    resp_data = await response.json()
+                    data = {}
+                    try:
+                        data = _RadioApi(**resp_data)
+                    except pydantic.error_wrappers.ValidationError:
+                        raise FormatError('Not a RadioApi stream')
+                    nowPlaying = data.nowPlaying[0]
+                    data_dict = nowPlaying.dict()
+                    if data_dict != prev:
+                        prev = data_dict
+                        yield {
+                            'title': nowPlaying.name,
+                            'artist': nowPlaying.artist
+                        }
+                await asyncio.sleep(120)
+
+
 async def read_song_info(url):
-    for stream_class in [M3u8, Icy]:
+    for stream_class in [M3u8, Icy, RadioApi]:
         stream: Stream = stream_class(url)
         try:
             async for song_info in stream.read_song_info():
@@ -177,7 +210,7 @@ async def read_song_info(url):
 if __name__ == "__main__":
 
     async def main():
-        async for item in read_song_info('https://chz.radioca.st/streams/128kbps'):
+        async for item in read_song_info('https://radio-api.mediaworks.nz/radio-api/v3/station/georgefm/auckland/web'):
             print(item)
 
     asyncio.run(main())
