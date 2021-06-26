@@ -112,7 +112,12 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                         # And check - maybe it actually is in the database
                         song = await rdb.first(
                             select(Song)
-                            .where(Song.spotify_uri == uri)
+                            .where(
+                                or_(
+                                    Song.spotify_uri == uri,
+                                    and_(Song.artist == artist, Song.title == title)
+                                )
+                            )
                         )
                         # Or not
                         if not song:
