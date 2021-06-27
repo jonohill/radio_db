@@ -68,7 +68,7 @@ def authorise():
 
     sp_conf = config.spotify
     sp = Spotify(auth_manager=SpotifyOAuth(
-        scope='playlist-modify-private', 
+        scope='playlist-modify-private,playlist-modify-public', 
         redirect_uri='http://localhost:9090', 
         client_id=sp_conf.client_id, 
         client_secret=sp_conf.client_secret,
