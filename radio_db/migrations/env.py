@@ -1,27 +1,24 @@
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import AsyncEngine
+from alembic import context  # type: ignore
 from radio_db.config import from_yaml as config_from_yaml
-from radio_db.db import RadioDatabase, Base
-
-from alembic import context
+from radio_db.db import Base, RadioDatabase
+from sqlalchemy.engine import Connection
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-config = context.config
+config = context.config # type: ignore
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name)
+fileConfig(config.config_file_name) # type: ignore
 
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
+target_metadata = Base.metadata # type: ignore
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -45,22 +42,22 @@ def run_migrations_offline():
     db_conf = config_from_yaml().database
     rdb = RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
     url = rdb.get_url()
-    context.configure(
+    context.configure( # type: ignore
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
 
-    with context.begin_transaction():
-        context.run_migrations()
+    with context.begin_transaction(): # type: ignore
+        context.run_migrations() # type: ignore
 
 
-def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
+def do_run_migrations(connection: Connection):
+    context.configure(connection=connection, target_metadata=target_metadata) # type: ignore
 
-    with context.begin_transaction():
-        context.run_migrations()
+    with context.begin_transaction(): # type: ignore
+        context.run_migrations() # type: ignore
 
 
 async def run_migrations_online():

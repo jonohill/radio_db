@@ -1,14 +1,18 @@
 import asyncio
-import contextvars
 import enum
 import logging
 from asyncio import Lock
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from typing import AsyncGenerator, Type
 from urllib.parse import quote_plus
 
 from sqlalchemy import BigInteger, Column, DateTime, Enum, String
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import (AsyncConnection, AsyncEngine, AsyncSession,
+                                    create_async_engine)
+from sqlalchemy.orm import declarative_base # type: ignore
+from sqlalchemy.orm.decl_api import DeclarativeMeta
+from sqlalchemy.sql.expression import Executable
 from sqlalchemy.sql.schema import ForeignKey, Index
 
 from radio_db.config import PlaylistType
@@ -30,7 +34,7 @@ class Pending(Base):
     __tablename__ = 'pending'
 
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    station     = Column(ForeignKey('station.id'))
+    station: Column[BigInteger] = Column(ForeignKey('station.id'))
     artist      = Column(String)
     title       = Column(String)
     seen_at     = Column(DateTime)
@@ -54,15 +58,15 @@ class Play(Base):
     __tablename__ = 'play'
 
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    station     = Column(ForeignKey('station.id'))
-    song        = Column(ForeignKey('song.id'))
+    station: Column[BigInteger] = Column(ForeignKey('station.id'))
+    song: Column[BigInteger] = Column(ForeignKey('song.id'))
     at          = Column(DateTime, nullable=False)
 
 class Playlist(Base):
     __tablename__ = 'playlist'
 
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    station     = Column(ForeignKey('station.id'))
+    station: Column[BigInteger] = Column(ForeignKey('station.id'))
     type_       = Column(Enum(PlaylistType))
     spotify_uri = Column(String, unique=True)
 
@@ -78,28 +82,29 @@ class State(Base):
 
 class RadioDatabase:
     
-    def __init__(self, host, user, password, db):
+    def __init__(self, host: str, user: str, password: str, db: str):
         self.host = host
         self.user = user
         self.password = password
         self.db = db
         self._tx_lock = asyncio.Lock()
-        self._session = contextvars.ContextVar('session')
+        self._session: ContextVar[AsyncSession] = ContextVar('session')
         self._lock = Lock()
 
     def get_url(self):
         q = quote_plus
         return f'postgresql+asyncpg://{q(self.user)}:{q(self.password)}@{q(self.host)}:5432/{q(self.db)}'
 
-    def create_engine(self):
-        engine = self._engine = create_async_engine(self.get_url())
+    def create_engine(self) -> AsyncEngine:
+        engine: AsyncEngine = create_async_engine(self.get_url())
+        self._engine = engine
         return engine
 
     async def connect(self):
         self.create_engine()
 
     @asynccontextmanager
-    async def session(self):
+    async def session(self) -> AsyncGenerator[AsyncSession, None]:
         try:
             # subsequent
             session = self._session.get()
@@ -109,7 +114,8 @@ class RadioDatabase:
         except LookupError:
             pass
         # first
-        async with self._engine.connect() as connection:
+        conn_context: AsyncConnection = self._engine.connect()
+        async with conn_context as connection:
             async with AsyncSession(bind=connection, expire_on_commit=False) as session:
                 log.debug('created new session')
                 token = self._session.set(session)
@@ -132,7 +138,7 @@ class RadioDatabase:
         async with self.session() as session:
             session.add(item)            
 
-    async def exec(self, query):
+    async def exec(self, query: Executable):
         async with self.session() as session:
             return await session.execute(query)
 

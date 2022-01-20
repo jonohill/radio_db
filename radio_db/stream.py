@@ -3,20 +3,29 @@ import json
 import logging
 from itertools import takewhile
 from time import time
-from typing import List
+from typing import AsyncGenerator, Callable, Generator, List, Optional, TypedDict
+from typing_extensions import NotRequired
 
 import aiohttp
 from pydantic import BaseModel
 import pydantic
 
+from dist.radio_db.db import Song
+
 log = logging.getLogger(__name__)
+
+class SongInfo(TypedDict):
+    title: str
+    file: NotRequired[str]
+    artist: NotRequired[str]
 
 class Stream:
 
-    def __init__(self, stream_url):
+    def __init__(self, stream_url: str):
         self.stream_url = stream_url
 
-    async def read_song_info(self):
+    async def read_song_info(self) -> AsyncGenerator[SongInfo, None]:
+        yield SongInfo(title='')
         raise NotImplementedError()
 
 M3U8_MAGIC = '#EXTM3U'.encode()
@@ -24,9 +33,15 @@ M3U8_MAGIC = '#EXTM3U'.encode()
 class FormatError(Exception):
     pass
 
+class _M3u8Info(TypedDict):
+    file: str
+    duration: float
+    tags: dict[str, str]
+
 class M3u8(Stream):
 
-    async def _read_stream_inf(_, url_line):
+
+    async def _read_stream_inf(_self, url_line: str):
         """Example:
             #EXT-X-STREAM-INF:BANDWIDTH=33000,CODECS="mp4a.40.5"
             https://url-to-another-stream.m3u8
@@ -35,16 +50,14 @@ class M3u8(Stream):
         async for result in m3u8.read_song_info():
             yield result
 
-    def _read_inf(_, tag_line, url_line):
-        tag_map = {}
-        tag_map['file'] = url_line
+    def _read_inf(_self, tag_line: str, url_line: str) -> _M3u8Info:
+        tag_map: dict[str, str] = {}
 
         chars = iter(tag_line)
         pop = lambda: next(chars, None)
-        until = lambda c: ''.join(takewhile(lambda d: c != d, chars))
+        until: Callable[[str], str] = lambda c: ''.join(takewhile(lambda d: c != d, chars))
 
-        # duration
-        tag_map['duration'] = float(until(','))
+        duration = float(until(','))
 
         eol = False
         while not eol:
@@ -77,11 +90,15 @@ class M3u8(Stream):
 
             tag_map[key] = value
 
-        return tag_map
+        return {
+            'file': url_line,
+            'duration': duration,
+            'tags': tag_map
+        }
 
-    async def read_song_info(self):
-        recent = [None] * 20
-        def not_recent(item):
+    async def read_song_info(self) -> AsyncGenerator[SongInfo, None]:
+        recent: List[None | str] = [None] * 20
+        def not_recent(item: SongInfo):
             file = item['file']
             if file in recent:
                 return False
@@ -91,10 +108,8 @@ class M3u8(Stream):
 
         async with aiohttp.ClientSession() as http:
             while True:
-                target_duration = 5
+                target_duration = 5.0
                 response = await http.get(self.stream_url)
-                async def read(n=-1): 
-                    return (await response.content.read(n)).decode().strip()
                 async def readline():
                     return (await response.content.readline()).decode().strip()
 
@@ -118,10 +133,10 @@ class M3u8(Stream):
                             if not_recent(item):
                                 yield item
                     elif tag == '#EXT-X-TARGETDURATION':
-                        target_duration = min(target_duration, max(int(value), 1))
+                        target_duration = float(min(target_duration, max(int(value), 1)))
                     elif tag == '#EXTINF': 
                         inf = self._read_inf(value, line2)
-                        target_duration = max(0, min(target_duration, inf.get('duration', target_duration)) - 1)
+                        target_duration = float(max(0, min(target_duration, inf.get('duration', target_duration)) - 1))
                         if not_recent(inf):
                             start = time()
                             yield inf
@@ -141,7 +156,7 @@ class _FfOut(BaseModel):
 
 class Icy(Stream):
 
-    async def read_song_info(self):
+    async def read_song_info(self) -> AsyncGenerator[SongInfo, None]:
         prev_result = {}
         while True:
             proc = await asyncio.create_subprocess_exec('ffprobe', '-v', 'error', '-show_format', '-of', 'json', self.stream_url, stdout=asyncio.subprocess.PIPE)
@@ -151,13 +166,16 @@ class Icy(Stream):
             except pydantic.error_wrappers.ValidationError:
                 raise FormatError('Not an icy stream')
             song = ff_out.format.tags.StreamTitle.split(' - ', maxsplit=1)
-            result = {}
             if len(song) == 2:
                 artist, title = tuple(song)
-                result['artist'] = artist
-                result['title'] = title
+                result: SongInfo = {
+                    'title': title,
+                    'artist': artist
+                }
             else:
-                result['title'] = song[0]
+                result: SongInfo = {
+                    'title': song[0]
+                }
             if prev_result != result:
                 prev_result = result
                 yield result
@@ -173,7 +191,7 @@ class _RadioApi(BaseModel):
 class RadioApi(Stream):
     """As used by Rova"""
 
-    async def read_song_info(self):
+    async def read_song_info(self) -> AsyncGenerator[SongInfo, None]:
         async with aiohttp.ClientSession() as http:
             prev = {}
             while True:
@@ -188,14 +206,15 @@ class RadioApi(Stream):
                     data_dict = nowPlaying.dict()
                     if data_dict != prev:
                         prev = data_dict
-                        yield {
+                        info: SongInfo = {
                             'title': nowPlaying.name,
                             'artist': nowPlaying.artist
                         }
+                        yield info
                 await asyncio.sleep(120)
 
 
-async def read_song_info(url):
+async def read_song_info(url: str):
     for stream_class in [M3u8, Icy, RadioApi]:
         stream: Stream = stream_class(url)
         try:
