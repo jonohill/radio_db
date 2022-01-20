@@ -41,7 +41,7 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
 
     async with rdb.session():
         while True:
-            next_pending: Pending = await rdb.first(
+            next_pending: Pending | None = await rdb.first(
                 select(Pending)
                 .where(
                     or_(
@@ -67,11 +67,17 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                     .values(picked_at=datetime.now())
                     .execution_options(synchronize_session='fetch')
                 )
+                if not result:
+                    raise Exception("Expected result to be set")
+
             if result.rowcount == 0:
                 # If the picked_at has changed then someone else picked it up in the mean time
                 continue
 
             async def _process_song():
+                if not next_pending:
+                    raise Exception("next_pending should have been set already")
+
                 station = await rdb.first(
                     select(Station)
                     .where(Station.id == next_pending.station)

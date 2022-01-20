@@ -3,7 +3,7 @@ import json
 import logging
 from base64 import b64decode
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 from spotipy import Spotify, SpotifyOAuth, cache_handler
 from sqlalchemy import and_, desc, func
@@ -27,17 +27,17 @@ class DbCacheHandler(cache_handler.CacheHandler):
     def __init__(self, db: RadioDatabase) -> None:
         super().__init__()
         self.db = db
-        self.token = {}
+        self.token: Any = {}
         self.needs_save = asyncio.Event()
 
     def get_cached_token(self):
         return self.token
 
-    def save_token_to_cache(self, token_info):
+    def save_token_to_cache(self, token_info: Any):
         self.token = token_info
         self.needs_save.set()
 
-    async def populate_from_db(self, seed):
+    async def populate_from_db(self, seed: str):
         token_row: State = await self.db.first(
             select(State).where(State.key == StateKey.SpotifyAuth)
         )
