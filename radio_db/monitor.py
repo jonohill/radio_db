@@ -87,6 +87,10 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                 # Try for an exact match in the database
                 artist = next_pending.artist
                 title = next_pending.title
+
+                if not title.strip():
+                    return
+
                 normalised = f'{next_pending.artist} {next_pending.title}'.replace(' - ', ' ').lower()
 
                 filters = station_config.filters
