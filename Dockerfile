@@ -5,7 +5,7 @@ FROM base as build
 # renovate: datasource=github-releases depName=python-poetry/poetry
 ARG POETRY_VERSION=1.1.12
 ENV POETRY_HOME=/opt/poetry
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/${POETRY_VERSION}/get-poetry.py | python -
+RUN curl --fail -sSL https://install.python-poetry.org/ | python -
 ENV PATH=$PATH:${POETRY_HOME}/bin
 
 COPY pyproject.toml poetry.lock /app/
