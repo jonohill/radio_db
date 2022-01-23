@@ -34,7 +34,7 @@ class Pending(Base):
     __tablename__ = 'pending'
 
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    station: Column[BigInteger] = Column(ForeignKey('station.id'))
+    station     = Column(ForeignKey('station.id'))
     artist      = Column(String)
     title       = Column(String)
     seen_at     = Column(DateTime)
@@ -58,15 +58,15 @@ class Play(Base):
     __tablename__ = 'play'
 
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    station: Column[BigInteger] = Column(ForeignKey('station.id'))
-    song: Column[BigInteger] = Column(ForeignKey('song.id'))
+    station     = Column(ForeignKey('station.id'))
+    song        = Column(ForeignKey('song.id'))
     at          = Column(DateTime, nullable=False)
 
 class Playlist(Base):
     __tablename__ = 'playlist'
 
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    station: Column[BigInteger] = Column(ForeignKey('station.id'))
+    station     = Column(ForeignKey('station.id'))
     type_       = Column(Enum(PlaylistType))
     spotify_uri = Column(String, unique=True)
 
