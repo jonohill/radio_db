@@ -7,8 +7,8 @@ class PlaylistType(Enum):
     Top = 'top'
 
 class FilterConfig(BaseModel):
-    blank: Pattern = None
-    ignore: Pattern = None
+    blank: Pattern | None = None
+    ignore: Pattern | None = None
 
 class PlaylistConfig(BaseModel):
     type: PlaylistType = PlaylistType.Top
@@ -19,7 +19,7 @@ class StationConfig(BaseModel):
     key: str
     name: str
     url: str
-    filters: FilterConfig = None
+    filters: FilterConfig | None = None
     playlists: List[PlaylistConfig] = []
 
 class SpotifyConfig(BaseSettings):

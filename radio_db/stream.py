@@ -3,8 +3,8 @@ import json
 import logging
 from itertools import takewhile
 from time import time
-from typing import AsyncGenerator, Callable, Generator, List, Optional, TypedDict
-from typing_extensions import NotRequired
+from typing import AsyncGenerator, Callable, List
+from dataclasses import dataclass
 
 import aiohttp
 from pydantic import BaseModel
@@ -14,10 +14,11 @@ from dist.radio_db.db import Song
 
 log = logging.getLogger(__name__)
 
-class SongInfo(TypedDict):
+@dataclass
+class SongInfo:
     title: str
-    file: NotRequired[str]
-    artist: NotRequired[str]
+    file: str = ''
+    artist: str = ''
 
 class Stream:
 
@@ -33,7 +34,8 @@ M3U8_MAGIC = '#EXTM3U'.encode()
 class FormatError(Exception):
     pass
 
-class _M3u8Info(TypedDict):
+@dataclass
+class _M3u8Info:
     file: str
     duration: float
     tags: dict[str, str]
@@ -90,16 +92,16 @@ class M3u8(Stream):
 
             tag_map[key] = value
 
-        return {
-            'file': url_line,
-            'duration': duration,
-            'tags': tag_map
-        }
+        return _M3u8Info(
+            file=url_line,
+            duration=duration,
+            tags=tag_map
+        )
 
     async def read_song_info(self) -> AsyncGenerator[SongInfo, None]:
         recent: List[None | str] = [None] * 20
-        def not_recent(item: SongInfo):
-            file = item['file']
+        def not_recent(item: SongInfo | _M3u8Info):
+            file = item.file
             if file in recent:
                 return False
             recent.append(file)
@@ -136,10 +138,19 @@ class M3u8(Stream):
                         target_duration = float(min(target_duration, max(int(value), 1)))
                     elif tag == '#EXTINF': 
                         inf = self._read_inf(value, line2)
-                        target_duration = float(max(0, min(target_duration, inf.get('duration', target_duration)) - 1))
+                        target_duration = float(max(0, min(target_duration, inf.duration or target_duration)) - 1)
                         if not_recent(inf):
                             start = time()
-                            yield inf
+
+                            title = inf.tags.get('title', '')
+                            artist = inf.tags.get('artist', '')
+
+                            yield SongInfo(
+                                title=title,
+                                artist=artist,
+                                file=inf.file
+                            )
+
                             end = time()
                             target_duration = max(0, target_duration - (end - start))
 
@@ -168,14 +179,14 @@ class Icy(Stream):
             song = ff_out.format.tags.StreamTitle.split(' - ', maxsplit=1)
             if len(song) == 2:
                 artist, title = tuple(song)
-                result: SongInfo = {
-                    'title': title,
-                    'artist': artist
-                }
+                result = SongInfo(
+                    title=title,
+                    artist=artist
+                )
             else:
-                result: SongInfo = {
-                    'title': song[0]
-                }
+                result = SongInfo(
+                    title=song[0]
+                )
             if prev_result != result:
                 prev_result = result
                 yield result
@@ -206,10 +217,10 @@ class RadioApi(Stream):
                     data_dict = nowPlaying.dict()
                     if data_dict != prev:
                         prev = data_dict
-                        info: SongInfo = {
-                            'title': nowPlaying.name,
-                            'artist': nowPlaying.artist
-                        }
+                        info = SongInfo(
+                            title=nowPlaying.name,
+                            artist=nowPlaying.artist
+                        )
                         yield info
                 await asyncio.sleep(120)
 

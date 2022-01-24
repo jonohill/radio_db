@@ -45,6 +45,10 @@ async def monitor():
 @app.command()
 @run_sync
 async def update_playlists(station_key: str = typer.Argument(None)):
+    if not config:
+        log.error('Config not loaded')
+        return
+
     for station in config.stations:
         if not station_key or station.key == station_key:
             await playlists.update(config, station.key)
@@ -52,6 +56,11 @@ async def update_playlists(station_key: str = typer.Argument(None)):
 @app.command()
 def authorise():
     """Authorise Spotify. Run this on something with a browser."""
+
+    if not config:
+        log.error('Config not loaded')
+        return
+
     def err(msg):
         print(msg, file=sys.stderr)
 

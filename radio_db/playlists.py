@@ -61,7 +61,7 @@ class DbCacheHandler(cache_handler.CacheHandler):
                         select(State).where(State.key == StateKey.SpotifyAuth).with_for_update()
                     )
                     if token_row:
-                        token_row.value = json.dumps(self.token)
+                        token_row.value = json.dumps(self.token) # type: ignore
                     else:
                         token_row = State(key=StateKey.SpotifyAuth, value=json.dumps(self.token))
                     await self.db.add(token_row)
@@ -91,7 +91,9 @@ async def get_playlist_uri(db: RadioDatabase, spotify: Spotify, station: Station
         playlist: Playlist = await db.first(get_query.with_for_update())
         if not playlist.spotify_uri:
             user = spotify.current_user()
+            assert user
             sp_playlist = spotify.user_playlist_create(user['id'], name, public=False, description=desc)
+            assert sp_playlist
             playlist.spotify_uri = sp_playlist['uri']
             await db.add(playlist)
     return playlist.spotify_uri

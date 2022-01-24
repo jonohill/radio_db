@@ -4,7 +4,7 @@ import re
 from asyncio import to_thread
 from datetime import datetime, timedelta
 from hashlib import sha256
-from typing import List
+from typing import Any, Coroutine, List, NoReturn
 
 from pydantic import BaseModel
 from spotipy import Spotify
@@ -110,7 +110,10 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
 
                 # Failing that, try to find it on Spotify
                 if not song:
-                    response = await to_thread(lambda: spotify.search(q=normalised, type='track'))
+                    response: dict[str, Any] | None = await to_thread(lambda: spotify.search(q=normalised, type='track'))
+                    if not response:
+                        return
+
                     result = SpotifyResult(**response)
                     items = result.tracks.items
                     if len(items) > 0:
@@ -173,9 +176,9 @@ async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
         artist = ''
         title = ''
         async for item in stream.read_song_info(station_config.url):
-            if 'artist' in item and 'title' in item:
-                new_artist = item['artist']
-                new_title = item['title']
+            if item.artist and item.title:
+                new_artist = item.artist
+                new_title = item.title
                 if new_artist != artist or new_title != title:
                     artist = new_artist
                     title = new_title
@@ -187,10 +190,10 @@ async def run(config):
     db_conf = config.database
     rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
     await rdb.connect()
-    for t in asyncio.as_completed(
-        [ monitor_station(rdb, s) for s in config.stations ] + 
-        [ process_pending(rdb, config.spotify.client_id, config.spotify.client_secret, config.stations) ]):
+    coros: list[Coroutine[Any, Any, None | NoReturn]] = [ monitor_station(rdb, s) for s in config.stations ]
+    coros.append(process_pending(rdb, config.spotify.client_id, config.spotify.client_secret, config.stations))
+    for t in asyncio.as_completed(coros):
         await t
 
-if __name__ == '__main__':
-    asyncio.run(run())
+# if __name__ == '__main__':
+#     asyncio.run(run())
