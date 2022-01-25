@@ -10,8 +10,6 @@ import aiohttp
 from pydantic import BaseModel
 import pydantic
 
-from dist.radio_db.db import Song
-
 log = logging.getLogger(__name__)
 
 @dataclass
