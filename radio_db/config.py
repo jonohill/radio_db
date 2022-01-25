@@ -1,14 +1,14 @@
 from pydantic import BaseModel, BaseSettings
 from enum import Enum
-from typing import Pattern, List
+from typing import Optional, Pattern, List
 from ruamel.yaml import YAML
 
 class PlaylistType(Enum):
     Top = 'top'
 
 class FilterConfig(BaseModel):
-    blank: Pattern | None = None
-    ignore: Pattern | None = None
+    blank: Optional[Pattern] = None
+    ignore: Optional[Pattern] = None
 
 class PlaylistConfig(BaseModel):
     type: PlaylistType = PlaylistType.Top
@@ -19,7 +19,7 @@ class StationConfig(BaseModel):
     key: str
     name: str
     url: str
-    filters: FilterConfig | None = None
+    filters: Optional[FilterConfig] = None
     playlists: List[PlaylistConfig] = []
 
 class SpotifyConfig(BaseSettings):
