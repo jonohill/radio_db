@@ -238,7 +238,7 @@ async def read_song_info(url: str):
 if __name__ == "__main__":
 
     async def main():
-        async for item in read_song_info('https://radio-api.mediaworks.nz/radio-api/v3/station/georgefm/auckland/web'):
+        async for item in read_song_info('https://ais-sa1.streamon.fm/7103_128k.aac/playlist.m3u8'):
             print(item)
 
     asyncio.run(main())

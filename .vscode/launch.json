@@ -9,6 +9,15 @@
             "type": "python",
             "request": "launch",
             "module": "radio_db"
-        }
+        },
+        {
+            "name": "Python: Manage",
+            "type": "python",
+            "request": "launch",
+            "module": "radio_db",
+            "args": [
+                "manage"
+            ]
+        }        
     ]
 }
