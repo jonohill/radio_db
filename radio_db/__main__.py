@@ -9,9 +9,10 @@ import typer
 from spotipy import CacheHandler, Spotify, SpotifyOAuth
 from typer import Option
 
-from . import playlists
+from . import db, playlists
 from .config import from_yaml as config_from_yaml
 from .monitor import run as run_monitor
+from .manage import run as run_manage
 
 log = logging.getLogger('__name__')
 
@@ -84,6 +85,29 @@ def authorise():
         cache_handler=TokenEchoer())
     )
     sp.current_user()
+
+
+@app.command()
+@run_sync
+async def init_db():
+    if not config:
+        log.error('Config not loaded')
+        return
+
+    rdb = db.RadioDatabase.from_config(config.database)
+    await rdb.create_all()
+
+
+@app.command()
+@run_sync
+async def manage():
+
+    if not config:
+        log.error('Config not loaded')
+        return
+
+    await run_manage(config)
+
 
 if __name__ == '__main__':
     app()

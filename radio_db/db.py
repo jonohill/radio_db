@@ -7,7 +7,7 @@ from contextvars import ContextVar
 from typing import AsyncGenerator, Type
 from urllib.parse import quote_plus
 
-from sqlalchemy import BigInteger, Column, DateTime, Enum, String
+from sqlalchemy import BigInteger, Column, DateTime, Enum, String, create_engine
 from sqlalchemy.ext.asyncio import (AsyncConnection, AsyncEngine, AsyncSession,
                                     create_async_engine)
 from sqlalchemy.orm import declarative_base # type: ignore
@@ -15,7 +15,7 @@ from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlalchemy.sql.expression import Executable
 from sqlalchemy.sql.schema import ForeignKey, Index
 
-from radio_db.config import PlaylistType
+from radio_db.config import DatabaseConfig, PlaylistType
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +91,15 @@ class RadioDatabase:
         self._session: ContextVar[AsyncSession] = ContextVar('session')
         self._lock = Lock()
 
+    @classmethod
+    def from_config(cls, config: DatabaseConfig):
+        return cls(config.host, config.username, config.password, config.name)
+
+    async def create_all(self):
+        engine = self.create_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
     def get_url(self):
         q = quote_plus
         return f'postgresql+asyncpg://{q(self.user)}:{q(self.password)}@{q(self.host)}:5432/{q(self.db)}'
@@ -142,6 +151,10 @@ class RadioDatabase:
         async with self.session() as session:
             return await session.execute(query)
 
-    async def first(self, query):
+    async def query(self, query: Executable):
         result = await self.exec(query)
-        return result.scalars().first()
+        return result.scalars()
+
+    async def first(self, query):
+        result = await self.query(query)
+        return result.first()

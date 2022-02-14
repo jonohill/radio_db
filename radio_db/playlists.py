@@ -3,11 +3,13 @@ import json
 import logging
 from base64 import b64decode
 from datetime import datetime, timedelta
-from typing import Any, List, Tuple
+from typing import Any, Generator, Iterable, List, Tuple
 
 from spotipy import Spotify, SpotifyOAuth, cache_handler
 from sqlalchemy import and_, desc, func
 from sqlalchemy.future import select
+
+from radio_db.stations import get_top_songs
 
 from .config import Config, PlaylistConfig, PlaylistType, StationConfig
 from .db import Play, Playlist, RadioDatabase, Song, State, StateKey, Station
@@ -108,20 +110,17 @@ async def update_top(db: RadioDatabase, spotify: Spotify, station: Station, play
 
     playlist_uri = await get_playlist_uri(db, spotify, station, PlaylistType.Top, playlist_name, playlist_desc)
 
-    results: List[Tuple[datetime, int, Song]] = await db.exec(
-        select(func.max(Play.at).label('last_played'), func.count(Play.id).label('play_count'), Song)
-        .join(Song)
-        .where(and_(Play.at > (datetime.now() - timedelta(days=7)), Play.station == station.id))
-        .group_by(Song.id)
-        .order_by(desc('play_count'), desc('last_played'))
-    )
+    results = get_top_songs(db, station)
     items = []
-    for n, (last_played, play_count, song) in enumerate(results):
+    n = 0
+    async for last_played, play_count, song in results:
         log.debug(f'Add to playlist: {last_played} {play_count} {song.artist} - {song.title}')
         items.append(song.spotify_uri)
         if n + 1 >= 100:
             break
+        n += 1
     spotify.playlist_replace_items(playlist_uri, items)
+
 
 async def update(config: Config, station_key: str):
     db_conf = config.database
