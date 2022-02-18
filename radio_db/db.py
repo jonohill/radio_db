@@ -105,7 +105,7 @@ class RadioDatabase:
         return f'postgresql+asyncpg://{q(self.user)}:{q(self.password)}@{q(self.host)}:5432/{q(self.db)}'
 
     def create_engine(self) -> AsyncEngine:
-        engine: AsyncEngine = create_async_engine(self.get_url())
+        engine: AsyncEngine = create_async_engine(self.get_url(), pool_size=10, max_overflow=20)
         self._engine = engine
         return engine
 
