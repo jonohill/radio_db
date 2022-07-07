@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "radio_db"
-version = "0.3.39"
+version = "0.3.40"
 description = ""
 authors = ["Jono Hill <jono@hillnz.com>"]
 
