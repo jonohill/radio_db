@@ -3,7 +3,7 @@ FROM python:3.10.5 AS base
 FROM base as build
 
 # renovate: datasource=github-releases depName=python-poetry/poetry
-ARG POETRY_VERSION=1.1.14
+ARG POETRY_VERSION=1.1.15
 ENV POETRY_HOME=/opt/poetry
 RUN curl --fail -sSL https://install.python-poetry.org/ | python -
 ENV PATH=$PATH:${POETRY_HOME}/bin
