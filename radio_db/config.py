@@ -43,6 +43,7 @@ class DatabaseConfig(BaseSettings):
 
 class Config(BaseSettings):
     stations: List[StationConfig]
+    admin_port: int = 0
     database: DatabaseConfig = DatabaseConfig()
     spotify: SpotifyConfig = SpotifyConfig()
 

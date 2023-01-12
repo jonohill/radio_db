@@ -9,12 +9,12 @@ from typing import Any, Coroutine, List, NoReturn
 from pydantic import BaseModel
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
-from sqlalchemy import and_, delete, null, or_, update
-from sqlalchemy.future import select
+from sqlalchemy import select, delete, null, update
 
 from . import db, stream
 from .config import StationConfig
 from .db import Pending, Play, RadioDatabase, Song, Station
+
 
 log = logging.getLogger(__name__)
 
@@ -41,13 +41,11 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
 
     async with rdb.session():
         while True:
-            next_pending: Pending | None = await rdb.first(
+            next_pending = await rdb.first(
                 select(Pending)
                 .where(
-                    or_(
-                        Pending.picked_at == null(),
-                        Pending.picked_at <= (datetime.now() - timedelta(minutes=5))
-                    )
+                    (Pending.picked_at == null()) |
+                    (Pending.picked_at <= (datetime.now() - timedelta(minutes=5)))
                 )
                 .order_by(Pending.seen_at)
             )
@@ -59,10 +57,8 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                 result = await rdb.exec(
                     update(Pending)
                     .where(
-                        and_(
-                            Pending.id == next_pending.id,
-                            Pending.picked_at == next_pending.picked_at
-                        )
+                        (Pending.id == next_pending.id) &
+                        (Pending.picked_at == next_pending.picked_at)
                     )
                     .values(picked_at=datetime.now())
                     .execution_options(synchronize_session='fetch')
@@ -126,10 +122,8 @@ async def process_pending(rdb: RadioDatabase, client_id, client_secret, stations
                         song = await rdb.first(
                             select(Song)
                             .where(
-                                or_(
-                                    Song.spotify_uri == uri,
-                                    and_(Song.artist == artist, Song.title == title)
-                                )
+                                (Song.spotify_uri == uri) |
+                                ((Song.artist == artist) & (Song.title == title))
                             )
                         )
                         # Or not
@@ -186,10 +180,7 @@ async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
                     async with rdb.transaction():
                         await rdb.add(pending)
 
-async def run(config):
-    db_conf = config.database
-    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
-    await rdb.connect()
+async def run(config, rdb):
     coros: list[Coroutine[Any, Any, None | NoReturn]] = [ monitor_station(rdb, s) for s in config.stations ]
     coros.append(process_pending(rdb, config.spotify.client_id, config.spotify.client_secret, config.stations))
     for t in asyncio.as_completed(coros):
