@@ -82,30 +82,23 @@ class State(Base):
 
 class RadioDatabase:
     
-    def __init__(self, host: str, user: str, password: str, db: str):
-        self.host = host
-        self.user = user
-        self.password = password
-        self.db = db
+    def __init__(self, connection_string: str):
+        self._connection_string = connection_string
         self._tx_lock = asyncio.Lock()
         self._session: ContextVar[AsyncSession] = ContextVar('session')
         self._lock = Lock()
 
     @classmethod
     def from_config(cls, config: DatabaseConfig):
-        return cls(config.host, config.username, config.password, config.name)
+        return cls(config.connection_string)
 
     async def create_all(self):
         engine = self.create_engine()
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-    def get_url(self):
-        q = quote_plus
-        return f'postgresql+asyncpg://{q(self.user)}:{q(self.password)}@{q(self.host)}:5432/{q(self.db)}'
-
     def create_engine(self) -> AsyncEngine:
-        engine: AsyncEngine = create_async_engine(self.get_url(), pool_size=10, max_overflow=20)
+        engine: AsyncEngine = create_async_engine(self._connection_string, pool_size=10, max_overflow=20)
         self._engine = engine
         return engine
 

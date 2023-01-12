@@ -32,10 +32,7 @@ class SpotifyConfig(BaseSettings):
         env_file = '.env'
 
 class DatabaseConfig(BaseSettings):
-    host: str
-    username: str
-    password: str
-    name: str
+    connection_string: str
     
     class Config:
         env_prefix = 'RDB_DATABASE_'
