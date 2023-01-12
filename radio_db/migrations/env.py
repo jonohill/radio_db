@@ -40,10 +40,9 @@ def run_migrations_offline():
     """
 
     db_conf = config_from_yaml().database
-    rdb = RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
-    url = rdb.get_url()
+    rdb = RadioDatabase(db_conf.connection_string)
     context.configure( # type: ignore
-        url=url,
+        url=db_conf.connection_string,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -77,7 +76,7 @@ async def run_migrations_online():
     # )
 
     db_conf = config_from_yaml().database
-    rdb = RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
+    rdb = RadioDatabase(db_conf.connection_string)
     connectable = rdb.create_engine()
 
     async with connectable.connect() as connection:
