@@ -12,7 +12,8 @@ from typer import Option
 from . import db, playlists
 from .config import from_yaml as config_from_yaml
 from .monitor import run as run_monitor
-from .manage import run as run_manage
+from .admin.app import run as run_admin
+
 
 log = logging.getLogger('__name__')
 
@@ -38,10 +39,24 @@ def read_config(
     logging.basicConfig(level=level)
     log.debug('Debug logging is enabled')
 
+
 @app.command()
 @run_sync
 async def monitor():
-    await run_monitor(config)
+    assert config
+    db_conf = config.database
+    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
+    await rdb.connect()
+
+    coros = []
+    if config.admin_port > 0:
+        coros.append(run_admin(config, rdb))
+    
+    coros.append(run_monitor(config, rdb))
+
+    for t in asyncio.as_completed(coros):
+        await t
+
 
 @app.command()
 @run_sync
@@ -96,17 +111,6 @@ async def init_db():
 
     rdb = db.RadioDatabase.from_config(config.database)
     await rdb.create_all()
-
-
-@app.command()
-@run_sync
-async def manage():
-
-    if not config:
-        log.error('Config not loaded')
-        return
-
-    await run_manage(config)
 
 
 if __name__ == '__main__':
