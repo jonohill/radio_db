@@ -18,6 +18,15 @@
             "args": [
                 "manage"
             ]
-        }        
+        },
+        {
+            "name": "Python: Monitor",
+            "type": "python",
+            "request": "launch",
+            "module": "radio_db",
+            "args": [
+                "monitor"
+            ]
+        }             
     ]
 }
