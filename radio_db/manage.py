@@ -78,7 +78,7 @@ async def list_tasks(db: RadioDatabase):
 
 async def run(config: Config):
     db_conf = config.database
-    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
+    rdb = db.RadioDatabase(db_conf.connection_string)
     await rdb.connect()
 
     await list_tasks(rdb)

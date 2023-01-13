@@ -188,7 +188,7 @@ async def monitor_station(rdb: RadioDatabase, station_config: StationConfig):
 
 async def run(config):
     db_conf = config.database
-    rdb = db.RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
+    rdb = db.RadioDatabase(db_conf.connection_string)
     await rdb.connect()
     coros: list[Coroutine[Any, Any, None | NoReturn]] = [ monitor_station(rdb, s) for s in config.stations ]
     coros.append(process_pending(rdb, config.spotify.client_id, config.spotify.client_secret, config.stations))

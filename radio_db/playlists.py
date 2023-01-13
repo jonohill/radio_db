@@ -124,7 +124,7 @@ async def update_top(db: RadioDatabase, spotify: Spotify, station: Station, play
 
 async def update(config: Config, station_key: str):
     db_conf = config.database
-    rdb = RadioDatabase(db_conf.host, db_conf.username, db_conf.password, db_conf.name)
+    rdb = RadioDatabase(db_conf.connection_string)
     await rdb.connect()
     async with rdb.session():
         station = await rdb.first(
