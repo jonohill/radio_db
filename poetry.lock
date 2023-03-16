@@ -996,6 +996,25 @@ files = [
 setuptools = ">=41.0"
 
 [[package]]
+name = "redis"
+version = "4.5.1"
+description = "Python client for Redis database and key-value store"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "redis-4.5.1-py3-none-any.whl", hash = "sha256:5deb072d26e67d2be1712603bfb7947ec3431fb0eec9c578994052e33035af6d"},
+    {file = "redis-4.5.1.tar.gz", hash = "sha256:1eec3741cda408d3a5f84b78d089c8b8d895f21b3b050988351e925faf202864"},
+]
+
+[package.dependencies]
+async-timeout = ">=4.0.2"
+
+[package.extras]
+hiredis = ["hiredis (>=1.0.0)"]
+ocsp = ["cryptography (>=36.0.1)", "pyopenssl (==20.0.1)", "requests (>=2.26.0)"]
+
+[[package]]
 name = "requests"
 version = "2.25.1"
 description = "Python HTTP for Humans."
@@ -1108,17 +1127,19 @@ files = [
 
 [[package]]
 name = "spotipy"
-version = "2.18.0"
+version = "2.22.1"
 description = "A light weight Python library for the Spotify Web API"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "spotipy-2.18.0-py3-none-any.whl", hash = "sha256:8acbc18dd44e1c22b3da500ca9225c5d2f7476f2e68d5d56a317b0b8c87ec8a5"},
-    {file = "spotipy-2.18.0.tar.gz", hash = "sha256:f7293b808696807e9acec6bdcff63f7dcc3cc1b148c0c4b4299ef43c966f7177"},
+    {file = "spotipy-2.22.1-py2-none-any.whl", hash = "sha256:aa023d8bc606053d95e8961f52293fdd8cd12ef4fad8f829e701bb3d61c48d76"},
+    {file = "spotipy-2.22.1-py3-none-any.whl", hash = "sha256:1dac15ac0aaf5246461a3cb0b3d837bc7af7b78597441289b500a5abac9fe9c4"},
+    {file = "spotipy-2.22.1.tar.gz", hash = "sha256:54680dbf243a2b0cff0e591e1d269692e94265273b52ab90994a661555c04ac7"},
 ]
 
 [package.dependencies]
+redis = ">=3.5.3"
 requests = ">=2.25.0"
 six = ">=1.15.0"
 urllib3 = ">=1.26.0"
@@ -1304,17 +1325,6 @@ python-versions = "*"
 files = [
     {file = "wcwidth-0.2.5-py2.py3-none-any.whl", hash = "sha256:beb4802a9cebb9144e99086eff703a642a13d6a0052920003a230f3294bbe784"},
     {file = "wcwidth-0.2.5.tar.gz", hash = "sha256:c4d647b99872929fdb7bdcaa4fbe7f01413ed3d98077df798530e5b04f116c83"},
-]
-
-[[package]]
-name = "wrapt"
-version = "1.12.1"
-description = "Module for decorators, wrappers and monkey patching."
-category = "dev"
-optional = false
-python-versions = "*"
-files = [
-    {file = "wrapt-1.12.1.tar.gz", hash = "sha256:b62ffa81fb85f4332a4f609cab4ac40709470da05643a082ec1eb88e6d9b97d7"},
 ]
 
 [[package]]
