@@ -1228,14 +1228,14 @@ sqlcipher = ["sqlcipher3-binary"]
 
 [[package]]
 name = "sqlalchemy-cockroachdb"
-version = "2.0.0"
+version = "2.0.1"
 description = "CockroachDB dialect for SQLAlchemy"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "sqlalchemy-cockroachdb-2.0.0.tar.gz", hash = "sha256:bc3def9ea61c55ff7579cd9f75918a108af66db65981fcc2e638b6866fdaf0a7"},
-    {file = "sqlalchemy_cockroachdb-2.0.0-py3-none-any.whl", hash = "sha256:957ac4e22e9e8cd4d3f34ee878b76f439570e5d5ca61d2076f857a19a87ac4ca"},
+    {file = "sqlalchemy-cockroachdb-2.0.1.tar.gz", hash = "sha256:ddb46e2da53d812bf7b8ef21c3cafb918004747f815a283f374796bf57a9497a"},
+    {file = "sqlalchemy_cockroachdb-2.0.1-py3-none-any.whl", hash = "sha256:b7b9de727cb662d63c654be04202e3b55c4e4cf18a642d16a783dc151a7152f8"},
 ]
 
 [package.dependencies]
