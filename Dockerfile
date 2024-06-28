@@ -1,4 +1,4 @@
-FROM python:3.10.7 AS base
+FROM python:3.12.4 AS base
 
 FROM base as build
 
