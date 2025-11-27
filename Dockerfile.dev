@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:2-3.10
+FROM mcr.microsoft.com/devcontainers/python:3-3.10
 
 # renovate: datasource=github-releases depName=python-poetry/poetry
 ARG POETRY_VERSION=1.3.2
