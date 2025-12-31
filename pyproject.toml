@@ -7,7 +7,7 @@ authors = ["Jono Hill <jono@hillnz.com>"]
 [tool.poetry.dependencies]
 python = "^3.9"
 aiohttp = "^3.7.4"
-"ruamel.yaml" = "^0.18.0"
+"ruamel.yaml" = "^0.19.0"
 SQLAlchemy = "^2.0.0"
 aiosqlite = "^0.22.0"
 pydantic = "^2.0.0"
