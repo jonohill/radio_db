@@ -1474,18 +1474,18 @@ sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
 name = "sqlalchemy-cockroachdb"
-version = "2.0.3"
+version = "2.0.4"
 description = "CockroachDB dialect for SQLAlchemy"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "sqlalchemy_cockroachdb-2.0.3-py3-none-any.whl", hash = "sha256:cd1dca9a8c65ec8564c928ea26d154b7fc02f82948af200d965343894ca0c0f5"},
-    {file = "sqlalchemy_cockroachdb-2.0.3.tar.gz", hash = "sha256:48b763ffd8b2a4dc9d56459934a56d7d5ffad415c6e68d114baee5d12cf79c1d"},
+    {file = "sqlalchemy_cockroachdb-2.0.4-py3-none-any.whl", hash = "sha256:0804306a733a1fe09b2d496eadf8bf35d878862b6138e69175136fa2ca0ce5d0"},
+    {file = "sqlalchemy_cockroachdb-2.0.4.tar.gz", hash = "sha256:f66354d2b93da89cb4524c5b78a44d0cf5a8943d328b7f0aee4aa1dfc6178b65"},
 ]
 
 [package.dependencies]
-SQLAlchemy = "*"
+SQLAlchemy = ">=2.0.47,<2.1"
 
 [[package]]
 name = "tomli"
