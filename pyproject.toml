@@ -22,7 +22,7 @@ sqlalchemy-cockroachdb = "^2.0.0"
 psycopg2 = "^2.9.5"
 
 [tool.poetry.dev-dependencies]
-pylint = "^3.0.0"
+pylint = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
